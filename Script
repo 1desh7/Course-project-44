@@ -1,0 +1,191 @@
+<!-- 1. Підключення стилів та скриптів календаря Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
+
+<!-- 2. Стилі -->
+<style>
+  /* Приховуємо стандартний випадаючий список модифікацій */
+  .product-modifications {
+    display: none !important;
+  }
+
+  /* Шапка календаря: місяць + рік */
+  .flatpickr-current-month {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+  }
+  .flatpickr-current-month .cur-month {
+    display: inline-block !important;
+    color: #222 !important;
+    margin: 0 !important;
+  }
+  .flatpickr-current-month .numInputWrapper {
+    display: inline-block !important;
+    width: 70px;
+  }
+  .flatpickr-current-month input.cur-year {
+    color: #222 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Доступні дати виділяємо */
+  .flatpickr-day:not(.flatpickr-disabled):not(.selected) {
+    background: #e8f5e9;
+    border-color: #c8e6c9;
+  }
+</style>
+
+<!-- 3. Автоматичний скрипт зчитування модифікацій -->
+<script>
+function initAutoTravelCalendar() {
+  // Шукаємо випадаючий список або елементи модифікацій Shop Express
+  var selectEl = document.querySelector('.product-modifications select, select[name*="option"], select[name*="variant"]');
+  var targetContainer = document.querySelector('.product-buy-block') || document.querySelector('.product-modifications');
+
+  if (!selectEl || !targetContainer) {
+    return; // Якщо на сторінці немає модифікацій або це не товар, зупиняємо
+  }
+
+  if (document.getElementById('travel-date')) {
+    return; // Унікальність елемента
+  }
+
+  // Словник українських назв місяців для автоматичного розпізнавання
+  var monthsMap = {
+    'січня': '01', 'лютого': '02', 'березня': '03', 'квітня': '04',
+    'травня': '05', 'червня': '06', 'липня': '07', 'серпня': '08',
+    'вересня': '09', 'жовтня': '10', 'листопада': '11', 'грудня': '12',
+    'січень': '01', 'лютий': '02', 'березень': '03', 'квітень': '04',
+    'травень': '05', 'червень': '06', 'липень': '07', 'серпень': '08',
+    'вересень': '09', 'жовтень': '10', 'листопад': '11', 'грудень': '12'
+  };
+
+  // Перетворення тексту модифікації (наприклад, "15 жовтня 2026") у формат YYYY-MM-DD
+  function parseDateFromText(text) {
+    text = text.trim().toLowerCase();
+
+    // Формат DD.MM.YYYY
+    var matchDot = text.match(/(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})/);
+    if (matchDot) {
+      var day = matchDot[1].padStart(2, '0');
+      var month = matchDot[2].padStart(2, '0');
+      var year = matchDot[3];
+      return year + '-' + month + '-' + day;
+    }
+
+    // Текст на кшталт "15 жовтня" або "15 жовтня 2026"
+    var currentYear = new Date().getFullYear();
+    for (var monthName in monthsMap) {
+      if (text.includes(monthName)) {
+        var dayMatch = text.match(/(\d{1,2})/);
+        var yearMatch = text.match(/(\d{4})/);
+        if (dayMatch) {
+          var dayStr = dayMatch[1].padStart(2, '0');
+          var monthStr = monthsMap[monthName];
+          var yearStr = yearMatch ? yearMatch[1] : currentYear;
+          return yearStr + '-' + monthStr + '-' + dayStr;
+        }
+      }
+    }
+    return null;
+  }
+
+  // 1. Автоматичне сканування варіантів з опцій Shop Express
+  var availableTours = [];
+
+  Array.from(selectEl.options).forEach(function(option) {
+    if (!option.value || option.disabled) return;
+
+    var parsedDate = parseDateFromText(option.text);
+    if (parsedDate) {
+      availableTours.push({
+        date: parsedDate,
+        value: option.value,
+        text: option.text
+      });
+    }
+  });
+
+  if (availableTours.length === 0) return;
+
+  // 2. Створення верстки календаря на сторінці
+  var container = document.createElement('div');
+  container.className = 'custom-calendar-wrapper';
+  container.style.padding = '15px 0';
+  container.style.marginBottom = '15px';
+
+  var label = document.createElement('label');
+  label.style.display = 'block';
+  label.style.fontWeight = 'bold';
+  label.style.marginBottom = '8px';
+  label.innerText = 'Оберіть дату подорожі в календарі:';
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'travel-date';
+  input.placeholder = 'Натисніть, щоб обрати дату...';
+  input.readOnly = true;
+  input.style.width = '100%';
+  input.style.padding = '10px 14px';
+  input.style.border = '1px solid #ccc';
+  input.style.borderRadius = '6px';
+  input.style.fontSize = '16px';
+  input.style.cursor = 'pointer';
+  input.style.backgroundColor = '#fff';
+
+  container.appendChild(label);
+  container.appendChild(input);
+
+  targetContainer.parentNode.insertBefore(container, targetContainer);
+
+  // 3. Ініціалізація Flatpickr
+  function setupFlatpickr() {
+    if (typeof flatpickr === 'undefined') {
+      setTimeout(setupFlatpickr, 200);
+      return;
+    }
+
+    var tourDates = availableTours.map(function(t) { return t.date; }).sort();
+
+    // Найближча доступна дата (за локальним часом), щоб календар відкрився на потрібному місяці
+    var now = new Date();
+    var today = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    var firstDate = tourDates.find(function(d) { return d >= today; }) || tourDates[0];
+
+    flatpickr("#travel-date", {
+      locale: "uk",
+      dateFormat: "Y-m-d",
+      minDate: "today",
+      disableMobile: true,
+      enable: tourDates,
+      monthSelectorType: "static", // місяць текстом: "Жовтень 2026"
+      onReady: function(selectedDates, dateStr, instance) {
+        instance.jumpToDate(firstDate);
+      },
+      onChange: function(selectedDates, dateStr) {
+        var selectedTour = availableTours.find(function(t) { return t.date === dateStr; });
+        if (selectedTour) {
+          selectEl.value = selectedTour.value;
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+  }
+
+  setupFlatpickr();
+}
+
+// Запуск обробника
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAutoTravelCalendar);
+} else {
+  initAutoTravelCalendar();
+}
+</script>
